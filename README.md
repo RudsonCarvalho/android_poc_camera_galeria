@@ -1,0 +1,1 @@
+# android_poc_camera_galeria
