@@ -1,6 +1,5 @@
 package camera.poc.com.br.android_poc_camera;
 
-import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -8,8 +7,6 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
 import android.support.v4.content.FileProvider;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
@@ -19,6 +16,8 @@ import android.widget.ImageView;
 
 import java.io.File;
 import java.io.IOException;
+
+import static camera.poc.com.br.android_poc_camera.Camera.requestCameraPermission;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -41,15 +40,19 @@ public class MainActivity extends AppCompatActivity {
 
         Log.i(TAG_LOG, "componente init");
 
-        if (Camera.checkCameraHardware(getBaseContext())) {
+        Context ctx = getBaseContext();
+
+        // check camera
+        if (Camera.checkCameraHardware(ctx)) {
 
             Log.i(TAG_LOG, "dispositivo contem camera");
 
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            if (!Camera.checkCameraPermission(ctx)) {
+
                 btnFoto.setEnabled(false);
-                ActivityCompat.requestPermissions(this,
-                        new String[]{Manifest.permission.CAMERA
-                                , Manifest.permission.WRITE_EXTERNAL_STORAGE}, 0);
+
+                //solicita permissao
+                requestCameraPermission(ctx);
 
                 Log.i(TAG_LOG, "dado permissao para usar a camera");
 
@@ -63,9 +66,12 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+
+        //verifica se recebeu a autorizacao para habilitar o botao de foto
         if (requestCode == 0) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED
                     && grantResults[1] == PackageManager.PERMISSION_GRANTED) {
+
                 btnFoto.setEnabled(true);
             }
         }
@@ -81,9 +87,9 @@ public class MainActivity extends AppCompatActivity {
 
                 imgFoto.setImageURI(uriForFile);
 
-                Log.i(TAG_LOG, uriForFile.toString());
+                Camera.addImagemGaleria(file, getBaseContext());
 
-                galleryAddPic();
+                Log.i(TAG_LOG, "img file: " + uriForFile.toString());
             }
         }
     }
@@ -92,6 +98,7 @@ public class MainActivity extends AppCompatActivity {
      * Inicia os componentes da tela
      */
     private void initComponents() {
+
         imgFoto = (ImageView) findViewById(R.id.img_Foto);
         btnFoto = (Button) findViewById(R.id.btn_foto);
     }
@@ -105,14 +112,19 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
 
         try {
+
             file = getOutputMediaFile(getBaseContext());
+
         } catch (IOException e) {
-            e.printStackTrace();
+            Log.e(TAG_LOG, e.getMessage());
         }
 
         if (file == null) {
+
             Log.e(TAG_LOG, "Nao foi possivel criar um diretorio!");
+
         } else {
+
             intent.putExtra(MediaStore.EXTRA_OUTPUT, FileProvider.getUriForFile(view.getContext(),
                     view.getContext().getApplicationContext().getPackageName() + ".provider", file)
             );
@@ -132,28 +144,15 @@ public class MainActivity extends AppCompatActivity {
     private static File getOutputMediaFile(Context context) throws IOException {
 
         File mediaStorageDir = new File(Environment.getExternalStoragePublicDirectory(
-                Environment.DIRECTORY_DCIM), "Camera/" + APP_FOLDER + "/");
+                Environment.DIRECTORY_DCIM), Camera.getCameraDir(APP_FOLDER));
 
-        if (!mediaStorageDir.exists()){
-            if (!mediaStorageDir.mkdirs()){
+        if (!mediaStorageDir.exists()) {
+            if (!mediaStorageDir.mkdirs()) {
                 return null;
             }
         }
 
-        String timeStamp = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss").format(new java.util.Date());
-
-        return  File.createTempFile("IMG_"+ timeStamp,".jpg", mediaStorageDir);
-    }
-
-
-    /***
-     * Scanner para adicionar a foto na galeria.
-     */
-    private void galleryAddPic() {
-        Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-        Uri contentUri = Uri.fromFile(file);
-        mediaScanIntent.setData(contentUri);
-        this.sendBroadcast(mediaScanIntent);
+        return  File.createTempFile(Camera.getImageNewName(), Camera.IMAGE_TYPE, mediaStorageDir);
     }
 
 }
